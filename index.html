@@ -1,367 +1,415 @@
-import React, { useState, useEffect } from 'react';
-import { Mic, Music, Star, Zap, Trophy, Sword, Users, RefreshCw, Skull, Hand } from 'lucide-react';
-
-// Lustige Attribute für die Künstler
-const ATTRIBUTES = [
-  { id: 'vocals', label: 'Stimme', icon: Mic, color: 'text-blue-400' },
-  { id: 'flow', label: 'Flow', icon: Music, color: 'text-green-400' },
-  { id: 'presence', label: 'Bühnen-Präsenz', icon: Star, color: 'text-yellow-400' },
-  { id: 'vibe', label: 'Vibe', icon: Zap, color: 'text-purple-400' },
-  { id: 'lyrics', label: 'Texte', icon: Users, color: 'text-pink-400' },
-];
-
-const Card = ({ artist, hidden, onClick, interactive, winner, isTurn }) => {
-  if (!artist) return <div className="w-64 h-96 bg-gray-800 rounded-xl animate-pulse"></div>;
-
-  return (
-    <div 
-      className={`
-        relative w-full max-w-xs h-96 rounded-xl border-4 transition-all duration-500 transform
-        ${winner === true ? 'border-green-500 scale-105 shadow-[0_0_30px_rgba(34,197,94,0.6)]' : ''}
-        ${winner === false ? 'border-red-500 opacity-50 grayscale' : ''}
-        ${winner === null && isTurn ? 'border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.4)] scale-[1.02]' : 'border-gray-700'}
-        bg-slate-900 flex flex-col overflow-hidden
-      `}
-    >
-      {/* Turn Indicator Badge */}
-      {isTurn && winner === null && (
-        <div className="absolute top-0 inset-x-0 bg-yellow-400 text-slate-900 text-xs font-black text-center py-1 z-20 uppercase tracking-widest animate-pulse">
-          Wähle einen Stat!
-        </div>
-      )}
-
-      {/* Header Image / Avatar Placeholder */}
-      <div className={`h-32 w-full ${artist.color} flex items-center justify-center relative`}>
-        <span className="text-6xl font-black text-white opacity-20">{artist.name.charAt(0)}</span>
-        <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-slate-900 to-transparent"></div>
-      </div>
-
-      {/* Content */}
-      <div className="p-4 flex-1 flex flex-col">
-        <h3 className="text-2xl font-bold text-white mb-1 truncate">{artist.name}</h3>
-        <p className="text-gray-400 text-xs uppercase tracking-widest mb-4">Fighter Level {Math.floor(artist.totalPower / 10)}</p>
-
-        {hidden ? (
-          <div className="flex-1 flex items-center justify-center flex-col gap-2 animate-in fade-in duration-300">
-             <div className="w-16 h-16 rounded-full bg-gray-800/80 border border-gray-700 flex items-center justify-center">
-                <span className="text-3xl opacity-50">?</span>
-             </div>
-             <p className="text-gray-500 text-sm">Wartet auf Angriff...</p>
-          </div>
-        ) : (
-          <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {ATTRIBUTES.map((attr) => (
-              <button
-                key={attr.id}
-                disabled={!interactive}
-                onClick={() => interactive && onClick(attr.id)}
-                className={`
-                  w-full flex items-center justify-between p-2 rounded-lg transition-all
-                  ${interactive 
-                    ? 'hover:bg-gray-800 cursor-pointer ring-1 ring-gray-700 hover:ring-yellow-400 hover:scale-[1.02] active:scale-95' 
-                    : 'cursor-default opacity-80'}
-                  ${interactive ? 'group' : ''}
-                `}
-              >
-                <div className="flex items-center gap-2">
-                  <attr.icon size={16} className={`${attr.color} transition-transform group-hover:scale-110`} />
-                  <span className="text-sm text-gray-300 group-hover:text-white">{attr.label}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-24 h-2 bg-gray-800 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${attr.color.replace('text', 'bg')}`} 
-                      style={{ width: `${artist.stats[attr.id]}%` }}
-                    ></div>
-                  </div>
-                  <span className="text-sm font-bold text-white w-6 text-right">{artist.stats[attr.id]}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default function App() {
-  const [phase, setPhase] = useState('setup'); // setup, battle, round-end, game-over
-  const [teamMe, setTeamMe] = useState([]);
-  const [teamGF, setTeamGF] = useState([]);
-  const [currentRound, setCurrentRound] = useState(0);
-  const [scores, setScores] = useState({ me: 0, gf: 0 });
-  const [battleLog, setBattleLog] = useState("Bereit für das Battle...");
-  const [roundWinner, setRoundWinner] = useState(null); // 'me', 'gf', or 'draw'
-
-  // Eingabe-Status
-  const [inputMe, setInputMe] = useState("");
-  const [inputGF, setInputGF] = useState("");
-
-  // Runden-Logik: Gerade Runden (0, 2, 4...) -> Ich bin dran. Ungerade -> Sie ist dran.
-  const isMyTurn = currentRound % 2 === 0;
-
-  // Hilfsfunktion: Zufällige Stats generieren
-  const generateArtist = (name, colorClass) => {
-    const stats = {};
-    let totalPower = 0;
-    ATTRIBUTES.forEach(attr => {
-      const val = Math.floor(Math.random() * 60) + 40; // Werte zwischen 40 und 100
-      stats[attr.id] = val;
-      totalPower += val;
-    });
-    return { name, stats, totalPower, color: colorClass };
-  };
-
-  const handleAddMe = () => {
-    if (inputMe.trim() && teamMe.length < 10) {
-      setTeamMe([...teamMe, generateArtist(inputMe, 'bg-cyan-600')]);
-      setInputMe("");
-    }
-  };
-
-  const handleAddGF = () => {
-    if (inputGF.trim() && teamGF.length < 10) {
-      setTeamGF([...teamGF, generateArtist(inputGF, 'bg-fuchsia-600')]);
-      setInputGF("");
-    }
-  };
-
-  const loadDemoData = () => {
-    const demoMe = ["Kanye West", "The Weeknd", "Daft Punk", "Kendrick Lamar", "Tame Impala", "Gorillaz", "Frank Ocean", "Drake", "Eminem", "Travis Scott"];
-    const demoGF = ["Taylor Swift", "Harry Styles", "Dua Lipa", "Adele", "Beyoncé", "Billie Eilish", "Lana Del Rey", "Rihanna", "Ariana Grande", "Olivia Rodrigo"];
-    
-    setTeamMe(demoMe.map(n => generateArtist(n, 'bg-cyan-600')));
-    setTeamGF(demoGF.map(n => generateArtist(n, 'bg-fuchsia-600')));
-  };
-
-  const startBattle = () => {
-    if (teamMe.length === 10 && teamGF.length === 10) {
-      setPhase('battle');
-      setBattleLog("Runde 1: Du beginnst! Wähle einen Stat.");
-    }
-  };
-
-  const playRound = (statId) => {
-    const valMe = teamMe[currentRound].stats[statId];
-    const valGF = teamGF[currentRound].stats[statId];
-    const statLabel = ATTRIBUTES.find(a => a.id === statId).label;
-    
-    // Kurze Verzögerung für Spannung
-    setPhase('resolving'); 
-
-    setTimeout(() => {
-      if (valMe > valGF) {
-        setScores(s => ({ ...s, me: s.me + 1 }));
-        setBattleLog(`${teamMe[currentRound].name} gewinnt mit ${statLabel} (${valMe} vs ${valGF})!`);
-        setRoundWinner('me');
-      } else if (valGF > valMe) {
-        setScores(s => ({ ...s, gf: s.gf + 1 }));
-        setBattleLog(`${teamGF[currentRound].name} kontert mit ${statLabel} (${valGF} vs ${valMe})!`);
-        setRoundWinner('gf');
-      } else {
-        setBattleLog(`Unentschieden bei ${statLabel} (${valMe})!`);
-        setRoundWinner('draw');
-      }
-      setPhase('round-end');
-    }, 400);
-  };
-
-  const nextRound = () => {
-    if (currentRound < 9) {
-      setCurrentRound(curr => curr + 1);
-      setPhase('battle');
-      setRoundWinner(null);
-      
-      // Update Log for next turn
-      const nextIsMyTurn = (currentRound + 1) % 2 === 0;
-      setBattleLog(nextIsMyTurn ? "Du bist am Zug!" : "Sie ist am Zug! Mach dich bereit.");
-      
-    } else {
-      setPhase('game-over');
-    }
-  };
-
-  // --- UI COMPONENTS ---
-
-  if (phase === 'setup') {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white font-sans selection:bg-purple-500">
-        <div className="max-w-4xl mx-auto p-6">
-          <header className="text-center mb-12">
-            <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 mb-4 tracking-tighter">
-              BEAT BATTLE
-            </h1>
-            <p className="text-gray-400">Das ultimative Musik-Duell. Wer hat den besseren Geschmack?</p>
-          </header>
-
-          <div className="grid md:grid-cols-2 gap-12">
-            {/* Player Me */}
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-cyan-900/50">
-              <h2 className="text-xl font-bold text-cyan-400 mb-4 flex items-center gap-2">
-                <Sword size={20} /> Dein Team
-              </h2>
-              <div className="flex gap-2 mb-4">
-                <input 
-                  value={inputMe}
-                  onChange={(e) => setInputMe(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddMe()}
-                  placeholder="Künstler Name..."
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 transition"
-                />
-                <button onClick={handleAddMe} className="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded-lg font-bold">+</button>
-              </div>
-              <ul className="space-y-2 mb-4">
-                {teamMe.map((a, i) => (
-                  <li key={i} className="bg-slate-800 px-3 py-2 rounded flex justify-between items-center animate-in fade-in slide-in-from-left-4">
-                    <span>{a.name}</span>
-                    <span className="text-xs text-cyan-500 font-mono">{a.totalPower} PWR</span>
-                  </li>
-                ))}
-                {teamMe.length === 0 && <li className="text-slate-600 italic text-center py-4">Noch keine Kämpfer</li>}
-              </ul>
-              <div className="text-right text-sm text-gray-500">{teamMe.length} / 10</div>
-            </div>
-
-            {/* Player GF */}
-            <div className="bg-slate-900/50 p-6 rounded-2xl border border-fuchsia-900/50">
-              <h2 className="text-xl font-bold text-fuchsia-400 mb-4 flex items-center gap-2">
-                <Star size={20} /> Team Freundin
-              </h2>
-              <div className="flex gap-2 mb-4">
-                <input 
-                  value={inputGF}
-                  onChange={(e) => setInputGF(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddGF()}
-                  placeholder="Künstler Name..."
-                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-fuchsia-500 transition"
-                />
-                <button onClick={handleAddGF} className="bg-fuchsia-600 hover:bg-fuchsia-500 px-4 py-2 rounded-lg font-bold">+</button>
-              </div>
-              <ul className="space-y-2 mb-4">
-                {teamGF.map((a, i) => (
-                  <li key={i} className="bg-slate-800 px-3 py-2 rounded flex justify-between items-center animate-in fade-in slide-in-from-right-4">
-                    <span>{a.name}</span>
-                    <span className="text-xs text-fuchsia-500 font-mono">{a.totalPower} PWR</span>
-                  </li>
-                ))}
-                {teamGF.length === 0 && <li className="text-slate-600 italic text-center py-4">Noch keine Kämpfer</li>}
-              </ul>
-              <div className="text-right text-sm text-gray-500">{teamGF.length} / 10</div>
-            </div>
-          </div>
-
-          <div className="mt-12 flex flex-col items-center gap-4">
-            <button 
-              onClick={startBattle}
-              disabled={teamMe.length !== 10 || teamGF.length !== 10}
-              className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xl font-bold py-4 px-12 rounded-full shadow-lg shadow-purple-900/50 transition-all transform hover:scale-105"
-            >
-              BATTLE STARTEN
-            </button>
-            <button onClick={loadDemoData} className="text-slate-500 hover:text-white text-sm underline">
-              Demo-Daten laden (Schnellstart)
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- BATTLE SCREEN ---
-  
-  return (
-    <div className="min-h-screen bg-slate-950 text-white font-sans flex flex-col items-center justify-center p-4">
-      {/* Scoreboard */}
-      <div className="absolute top-0 w-full p-4 flex justify-between items-end max-w-4xl border-b border-slate-800 bg-slate-900/80 backdrop-blur-md z-10">
-        <div className={`text-left transition-opacity duration-300 ${isMyTurn && phase === 'battle' ? 'opacity-100' : 'opacity-50'}`}>
-          <div className="text-cyan-400 font-bold uppercase text-sm tracking-wider flex items-center gap-2">
-            Dein Team {isMyTurn && phase === 'battle' && <span className="flex w-2 h-2 bg-cyan-400 rounded-full animate-ping"></span>}
-          </div>
-          <div className="text-4xl font-black">{scores.me}</div>
-        </div>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beat Battle Arena</title>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel für JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
         
-        <div className="flex flex-col items-center">
-           <div className="text-xl font-bold text-white bg-slate-800 px-4 py-1 rounded-full mb-2 border border-slate-700">
-              Runde {currentRound + 1} / 10
-           </div>
-           <p className="text-gray-400 text-sm animate-pulse text-center max-w-md">{battleLog}</p>
-        </div>
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(250, 204, 21, 0.4); transform: scale(1.02); }
+            50% { box-shadow: 0 0 30px rgba(250, 204, 21, 0.7); transform: scale(1.03); }
+        }
+        .turn-active {
+            animation: pulse-glow 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-white selection:bg-purple-500 overflow-x-hidden">
+    <div id="root"></div>
 
-        <div className={`text-right transition-opacity duration-300 ${!isMyTurn && phase === 'battle' ? 'opacity-100' : 'opacity-50'}`}>
-          <div className="text-fuchsia-400 font-bold uppercase text-sm tracking-wider flex items-center justify-end gap-2">
-             {!isMyTurn && phase === 'battle' && <span className="flex w-2 h-2 bg-fuchsia-400 rounded-full animate-ping"></span>} Team Freundin
-          </div>
-          <div className="text-4xl font-black">{scores.gf}</div>
-        </div>
-      </div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-      {phase === 'game-over' ? (
-        <div className="text-center animate-in zoom-in duration-500">
-          <Trophy size={80} className="mx-auto text-yellow-400 mb-6" />
-          <h2 className="text-5xl font-black mb-4">
-            {scores.me > scores.gf ? "DU HAST GEWONNEN!" : scores.gf > scores.me ? "SIE HAT GEWONNEN!" : "UNENTSCHIEDEN!"}
-          </h2>
-          <p className="text-2xl text-gray-400 mb-8">
-            Endstand: <span className="text-cyan-400">{scores.me}</span> - <span className="text-fuchsia-400">{scores.gf}</span>
-          </p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="flex items-center gap-2 mx-auto bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-xl font-bold transition"
-          >
-            <RefreshCw size={20} /> Neues Battle
-          </button>
-        </div>
-      ) : (
-        <div className="w-full max-w-5xl flex flex-col md:flex-row items-center justify-center gap-8 md:gap-20 mt-20">
-          
-          {/* My Card */}
-          <div className="relative group transition-all duration-500">
-            <div className={`absolute -top-12 left-0 right-0 text-center text-cyan-400 font-bold transition-opacity ${roundWinner === 'me' ? 'opacity-100' : 'opacity-0'}`}>
-               WINNER
-            </div>
-            <Card 
-              artist={teamMe[currentRound]} 
-              interactive={phase === 'battle' && isMyTurn} 
-              hidden={phase === 'battle' && !isMyTurn} // Verstecken, wenn ich NICHT dran bin
-              isTurn={phase === 'battle' && isMyTurn}
-              onClick={playRound}
-              winner={phase === 'round-end' ? (roundWinner === 'me' ? true : roundWinner === 'draw' ? null : false) : null}
-            />
-          </div>
+        // --- ICONS (Inline SVGs für Standalone HTML) ---
+        const Icon = ({ path, size = 20, className = "" }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {path}
+            </svg>
+        );
 
-          {/* VS Element */}
-          <div className="flex flex-col items-center gap-4">
-             <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center border-4 border-slate-700 shadow-xl z-20">
-               <span className="text-xl font-black italic text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 to-fuchsia-500">VS</span>
-             </div>
-             {phase === 'round-end' && (
-               <button 
-                 onClick={nextRound}
-                 className="mt-4 bg-white text-slate-900 hover:bg-gray-200 font-bold px-8 py-3 rounded-full shadow-lg hover:shadow-xl transition-all animate-bounce"
-               >
-                 Nächste Runde &rarr;
-               </button>
-             )}
-          </div>
+        const Icons = {
+            Mic: (props) => <Icon {...props} path={<><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></>} />,
+            Music: (props) => <Icon {...props} path={<><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>} />,
+            Star: (props) => <Icon {...props} path={<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>} />,
+            Zap: (props) => <Icon {...props} path={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
+            Users: (props) => <Icon {...props} path={<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>} />,
+            Trophy: (props) => <Icon {...props} path={<><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10"/><path d="M5 4c-1.3 0-2.3 1-2.3 2.5 0 2.8 3.3 5.5 3.3 5.5s.5-2.5 1-4.8"/><path d="M19 4c1.3 0 2.3 1 2.3 2.5 0 2.8-3.3 5.5-3.3 5.5s-.5-2.5-1-4.8"/><path d="M12 17a6 6 0 0 1-6-6V4h12v7a6 6 0 0 1-6 6z"/></>} />,
+            Sword: (props) => <Icon {...props} path={<><line x1="14.5" y1="17.5" x2="3" y2="22"/><line x1="14.5" y1="17.5" x2="17.5" y2="14.5"/><line x1="19.5" y1="12.5" x2="22" y2="3"/><line x1="22" y1="3" x2="12.5" y2="19.5"/><line x1="14.5" y1="17.5" x2="3" y2="22"/><path d="M6 16l-3 3"/><path d="M16 6l3-3"/></>} />, // Simplifiziertes Schwert-Icon
+            RefreshCw: (props) => <Icon {...props} path={<><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>} />,
+        };
 
-          {/* GF Card */}
-          <div className="relative">
-             <div className={`absolute -top-12 left-0 right-0 text-center text-fuchsia-400 font-bold transition-opacity ${roundWinner === 'gf' ? 'opacity-100' : 'opacity-0'}`}>
-               WINNER
-            </div>
-            <Card 
-              artist={teamGF[currentRound]} 
-              interactive={phase === 'battle' && !isMyTurn}
-              hidden={phase === 'battle' && isMyTurn} // Verstecken, wenn ich dran bin
-              isTurn={phase === 'battle' && !isMyTurn}
-              onClick={playRound}
-              winner={phase === 'round-end' ? (roundWinner === 'gf' ? true : roundWinner === 'draw' ? null : false) : null}
-            />
-          </div>
+        // --- GAME CONSTANTS ---
+        const ATTRIBUTES = [
+            { id: 'vocals', label: 'Stimme', icon: Icons.Mic, color: 'text-blue-400' },
+            { id: 'flow', label: 'Flow', icon: Icons.Music, color: 'text-green-400' },
+            { id: 'presence', label: 'Bühnen-Präsenz', icon: Icons.Star, color: 'text-yellow-400' },
+            { id: 'vibe', label: 'Vibe', icon: Icons.Zap, color: 'text-purple-400' },
+            { id: 'lyrics', label: 'Texte', icon: Icons.Users, color: 'text-pink-400' },
+        ];
 
-        </div>
-      )}
-    </div>
-  );
-}
+        // --- COMPONENTS ---
+
+        const Card = ({ artist, hidden, onClick, interactive, winner, isTurn }) => {
+            if (!artist) return <div className="w-64 h-96 bg-slate-800 rounded-xl animate-pulse"></div>;
+
+            return (
+                <div 
+                className={`
+                    relative w-full max-w-xs h-96 rounded-xl border-4 transition-all duration-500 transform
+                    ${winner === true ? 'border-green-500 scale-105 shadow-[0_0_30px_rgba(34,197,94,0.6)]' : ''}
+                    ${winner === false ? 'border-red-500 opacity-50 grayscale' : ''}
+                    ${winner === null && isTurn ? 'border-yellow-400 turn-active' : 'border-gray-700'}
+                    bg-slate-900 flex flex-col overflow-hidden
+                `}
+                >
+                {/* Turn Indicator Badge */}
+                {isTurn && winner === null && (
+                    <div className="absolute top-0 inset-x-0 bg-yellow-400 text-slate-900 text-xs font-black text-center py-1 z-20 uppercase tracking-widest animate-pulse">
+                    Wähle einen Stat!
+                    </div>
+                )}
+
+                {/* Header Image */}
+                <div className={`h-32 w-full ${artist.color} flex items-center justify-center relative`}>
+                    <span className="text-6xl font-black text-white opacity-20">{artist.name.charAt(0)}</span>
+                    <div className="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-slate-900 to-transparent"></div>
+                </div>
+
+                {/* Content */}
+                <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="text-2xl font-bold text-white mb-1 truncate">{artist.name}</h3>
+                    <p className="text-gray-400 text-xs uppercase tracking-widest mb-4">Fighter Level {Math.floor(artist.totalPower / 10)}</p>
+
+                    {hidden ? (
+                    <div className="flex-1 flex items-center justify-center flex-col gap-2 animate-[fadeIn_0.5s_ease-out]">
+                        <div className="w-16 h-16 rounded-full bg-gray-800/80 border border-gray-700 flex items-center justify-center">
+                            <span className="text-3xl opacity-50">?</span>
+                        </div>
+                        <p className="text-gray-500 text-sm">Wartet auf Angriff...</p>
+                    </div>
+                    ) : (
+                    <div className="space-y-3">
+                        {ATTRIBUTES.map((attr) => (
+                        <button
+                            key={attr.id}
+                            disabled={!interactive}
+                            onClick={() => interactive && onClick(attr.id)}
+                            className={`
+                            w-full flex items-center justify-between p-2 rounded-lg transition-all
+                            ${interactive 
+                                ? 'hover:bg-gray-800 cursor-pointer ring-1 ring-gray-700 hover:ring-yellow-400 hover:scale-[1.02] active:scale-95' 
+                                : 'cursor-default opacity-80'}
+                            ${interactive ? 'group' : ''}
+                            `}
+                        >
+                            <div className="flex items-center gap-2">
+                            <attr.icon size={16} className={`${attr.color} transition-transform group-hover:scale-110`} />
+                            <span className="text-sm text-gray-300 group-hover:text-white">{attr.label}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                            <div className="w-24 h-2 bg-gray-800 rounded-full overflow-hidden">
+                                <div 
+                                className={`h-full ${attr.color.replace('text', 'bg')}`} 
+                                style={{ width: `${artist.stats[attr.id]}%` }}
+                                ></div>
+                            </div>
+                            <span className="text-sm font-bold text-white w-6 text-right">{artist.stats[attr.id]}</span>
+                            </div>
+                        </button>
+                        ))}
+                    </div>
+                    )}
+                </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [phase, setPhase] = useState('setup'); // setup, battle, round-end, game-over
+            const [teamMe, setTeamMe] = useState([]);
+            const [teamGF, setTeamGF] = useState([]);
+            const [currentRound, setCurrentRound] = useState(0);
+            const [scores, setScores] = useState({ me: 0, gf: 0 });
+            const [battleLog, setBattleLog] = useState("Bereit für das Battle...");
+            const [roundWinner, setRoundWinner] = useState(null); // 'me', 'gf', or 'draw'
+
+            // Eingabe-Status
+            const [inputMe, setInputMe] = useState("");
+            const [inputGF, setInputGF] = useState("");
+
+            // Runden-Logik: Gerade Runden (0, 2, 4...) -> Ich bin dran. Ungerade -> Sie ist dran.
+            const isMyTurn = currentRound % 2 === 0;
+
+            const generateArtist = (name, colorClass) => {
+                const stats = {};
+                let totalPower = 0;
+                ATTRIBUTES.forEach(attr => {
+                    const val = Math.floor(Math.random() * 60) + 40; 
+                    stats[attr.id] = val;
+                    totalPower += val;
+                });
+                return { name, stats, totalPower, color: colorClass };
+            };
+
+            const handleAddMe = () => {
+                if (inputMe.trim() && teamMe.length < 10) {
+                    setTeamMe([...teamMe, generateArtist(inputMe, 'bg-cyan-600')]);
+                    setInputMe("");
+                }
+            };
+
+            const handleAddGF = () => {
+                if (inputGF.trim() && teamGF.length < 10) {
+                    setTeamGF([...teamGF, generateArtist(inputGF, 'bg-fuchsia-600')]);
+                    setInputGF("");
+                }
+            };
+
+            const loadDemoData = () => {
+                const demoMe = ["Kanye West", "The Weeknd", "Daft Punk", "Kendrick Lamar", "Tame Impala", "Gorillaz", "Frank Ocean", "Drake", "Eminem", "Travis Scott"];
+                const demoGF = ["Taylor Swift", "Harry Styles", "Dua Lipa", "Adele", "Beyoncé", "Billie Eilish", "Lana Del Rey", "Rihanna", "Ariana Grande", "Olivia Rodrigo"];
+                setTeamMe(demoMe.map(n => generateArtist(n, 'bg-cyan-600')));
+                setTeamGF(demoGF.map(n => generateArtist(n, 'bg-fuchsia-600')));
+            };
+
+            const startBattle = () => {
+                if (teamMe.length === 10 && teamGF.length === 10) {
+                    setPhase('battle');
+                    setBattleLog("Runde 1: Du beginnst! Wähle einen Stat.");
+                }
+            };
+
+            const playRound = (statId) => {
+                const valMe = teamMe[currentRound].stats[statId];
+                const valGF = teamGF[currentRound].stats[statId];
+                const statLabel = ATTRIBUTES.find(a => a.id === statId).label;
+                
+                setPhase('resolving'); 
+
+                setTimeout(() => {
+                    if (valMe > valGF) {
+                        setScores(s => ({ ...s, me: s.me + 1 }));
+                        setBattleLog(`${teamMe[currentRound].name} gewinnt mit ${statLabel} (${valMe} vs ${valGF})!`);
+                        setRoundWinner('me');
+                    } else if (valGF > valMe) {
+                        setScores(s => ({ ...s, gf: s.gf + 1 }));
+                        setBattleLog(`${teamGF[currentRound].name} kontert mit ${statLabel} (${valGF} vs ${valMe})!`);
+                        setRoundWinner('gf');
+                    } else {
+                        setBattleLog(`Unentschieden bei ${statLabel} (${valMe})!`);
+                        setRoundWinner('draw');
+                    }
+                    setPhase('round-end');
+                }, 400);
+            };
+
+            const nextRound = () => {
+                if (currentRound < 9) {
+                    setCurrentRound(curr => curr + 1);
+                    setPhase('battle');
+                    setRoundWinner(null);
+                    const nextIsMyTurn = (currentRound + 1) % 2 === 0;
+                    setBattleLog(nextIsMyTurn ? "Du bist am Zug!" : "Sie ist am Zug! Mach dich bereit.");
+                } else {
+                    setPhase('game-over');
+                }
+            };
+
+            // --- UI RENDER ---
+
+            if (phase === 'setup') {
+                return (
+                    <div className="min-h-screen bg-slate-950 text-white font-sans">
+                        <div className="max-w-4xl mx-auto p-6">
+                            <header className="text-center mb-12">
+                                <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 mb-4 tracking-tighter">
+                                    BEAT BATTLE
+                                </h1>
+                                <p className="text-gray-400">Das ultimative Musik-Duell.</p>
+                            </header>
+
+                            <div className="grid md:grid-cols-2 gap-12">
+                                <div className="bg-slate-900/50 p-6 rounded-2xl border border-cyan-900/50">
+                                    <h2 className="text-xl font-bold text-cyan-400 mb-4 flex items-center gap-2">
+                                        <Icons.Sword size={20} /> Dein Team
+                                    </h2>
+                                    <div className="flex gap-2 mb-4">
+                                        <input 
+                                            value={inputMe}
+                                            onChange={(e) => setInputMe(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddMe()}
+                                            placeholder="Künstler Name..."
+                                            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 transition"
+                                        />
+                                        <button onClick={handleAddMe} className="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded-lg font-bold">+</button>
+                                    </div>
+                                    <ul className="space-y-2 mb-4">
+                                        {teamMe.map((a, i) => (
+                                            <li key={i} className="bg-slate-800 px-3 py-2 rounded flex justify-between items-center">
+                                                <span>{a.name}</span>
+                                                <span className="text-xs text-cyan-500 font-mono">{a.totalPower} PWR</span>
+                                            </li>
+                                        ))}
+                                        {teamMe.length === 0 && <li className="text-slate-600 italic text-center py-4">Noch keine Kämpfer</li>}
+                                    </ul>
+                                    <div className="text-right text-sm text-gray-500">{teamMe.length} / 10</div>
+                                </div>
+
+                                <div className="bg-slate-900/50 p-6 rounded-2xl border border-fuchsia-900/50">
+                                    <h2 className="text-xl font-bold text-fuchsia-400 mb-4 flex items-center gap-2">
+                                        <Icons.Star size={20} /> Team Freundin
+                                    </h2>
+                                    <div className="flex gap-2 mb-4">
+                                        <input 
+                                            value={inputGF}
+                                            onChange={(e) => setInputGF(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddGF()}
+                                            placeholder="Künstler Name..."
+                                            className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-fuchsia-500 transition"
+                                        />
+                                        <button onClick={handleAddGF} className="bg-fuchsia-600 hover:bg-fuchsia-500 px-4 py-2 rounded-lg font-bold">+</button>
+                                    </div>
+                                    <ul className="space-y-2 mb-4">
+                                        {teamGF.map((a, i) => (
+                                            <li key={i} className="bg-slate-800 px-3 py-2 rounded flex justify-between items-center">
+                                                <span>{a.name}</span>
+                                                <span className="text-xs text-fuchsia-500 font-mono">{a.totalPower} PWR</span>
+                                            </li>
+                                        ))}
+                                        {teamGF.length === 0 && <li className="text-slate-600 italic text-center py-4">Noch keine Kämpfer</li>}
+                                    </ul>
+                                    <div className="text-right text-sm text-gray-500">{teamGF.length} / 10</div>
+                                </div>
+                            </div>
+
+                            <div className="mt-12 flex flex-col items-center gap-4">
+                                <button 
+                                    onClick={startBattle}
+                                    disabled={teamMe.length !== 10 || teamGF.length !== 10}
+                                    className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xl font-bold py-4 px-12 rounded-full shadow-lg shadow-purple-900/50 transition-all transform hover:scale-105"
+                                >
+                                    BATTLE STARTEN
+                                </button>
+                                <button onClick={loadDemoData} className="text-slate-500 hover:text-white text-sm underline">
+                                    Demo-Daten laden (Schnellstart)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-950 text-white font-sans flex flex-col items-center justify-center p-4">
+                    {/* Scoreboard */}
+                    <div className="absolute top-0 w-full p-4 flex justify-between items-end max-w-4xl border-b border-slate-800 bg-slate-900/80 backdrop-blur-md z-10">
+                        <div className={`text-left transition-opacity duration-300 ${isMyTurn && phase === 'battle' ? 'opacity-100' : 'opacity-50'}`}>
+                            <div className="text-cyan-400 font-bold uppercase text-sm tracking-wider flex items-center gap-2">
+                                Dein Team {isMyTurn && phase === 'battle' && <span className="flex w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>}
+                            </div>
+                            <div className="text-4xl font-black">{scores.me}</div>
+                        </div>
+                        
+                        <div className="flex flex-col items-center">
+                            <div className="text-xl font-bold text-white bg-slate-800 px-4 py-1 rounded-full mb-2 border border-slate-700">
+                                Runde {currentRound + 1} / 10
+                            </div>
+                            <p className="text-gray-400 text-sm text-center max-w-md">{battleLog}</p>
+                        </div>
+
+                        <div className={`text-right transition-opacity duration-300 ${!isMyTurn && phase === 'battle' ? 'opacity-100' : 'opacity-50'}`}>
+                            <div className="text-fuchsia-400 font-bold uppercase text-sm tracking-wider flex items-center justify-end gap-2">
+                                {!isMyTurn && phase === 'battle' && <span className="flex w-2 h-2 bg-fuchsia-400 rounded-full animate-pulse"></span>} Team Freundin
+                            </div>
+                            <div className="text-4xl font-black">{scores.gf}</div>
+                        </div>
+                    </div>
+
+                    {phase === 'game-over' ? (
+                        <div className="text-center animate-[zoomIn_0.5s_ease-out]">
+                            <div className="flex justify-center mb-6">
+                                <Icons.Trophy size={80} className="text-yellow-400" />
+                            </div>
+                            <h2 className="text-5xl font-black mb-4">
+                                {scores.me > scores.gf ? "DU HAST GEWONNEN!" : scores.gf > scores.me ? "SIE HAT GEWONNEN!" : "UNENTSCHIEDEN!"}
+                            </h2>
+                            <p className="text-2xl text-gray-400 mb-8">
+                                Endstand: <span className="text-cyan-400">{scores.me}</span> - <span className="text-fuchsia-400">{scores.gf}</span>
+                            </p>
+                            <button 
+                                onClick={() => window.location.reload()} 
+                                className="flex items-center gap-2 mx-auto bg-slate-800 hover:bg-slate-700 px-6 py-3 rounded-xl font-bold transition"
+                            >
+                                <Icons.RefreshCw size={20} /> Neues Battle
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="w-full max-w-5xl flex flex-col md:flex-row items-center justify-center gap-8 md:gap-20 mt-20">
+                            
+                            {/* My Card */}
+                            <div className="relative group transition-all duration-500">
+                                <div className={`absolute -top-12 left-0 right-0 text-center text-cyan-400 font-bold transition-opacity ${roundWinner === 'me' ? 'opacity-100' : 'opacity-0'}`}>
+                                    WINNER
+                                </div>
+                                <Card 
+                                    artist={teamMe[currentRound]} 
+                                    interactive={phase === 'battle' && isMyTurn} 
+                                    hidden={phase === 'battle' && !isMyTurn} 
+                                    isTurn={phase === 'battle' && isMyTurn}
+                                    onClick={playRound}
+                                    winner={phase === 'round-end' ? (roundWinner === 'me' ? true : roundWinner === 'draw' ? null : false) : null}
+                                />
+                            </div>
+
+                            {/* VS Element */}
+                            <div className="flex flex-col items-center gap-4">
+                                <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center border-4 border-slate-700 shadow-xl z-20">
+                                    <span className="text-xl font-black italic text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 to-fuchsia-500">VS</span>
+                                </div>
+                                {phase === 'round-end' && (
+                                    <button 
+                                        onClick={nextRound}
+                                        className="mt-4 bg-white text-slate-900 hover:bg-gray-200 font-bold px-8 py-3 rounded-full shadow-lg hover:shadow-xl transition-all animate-bounce"
+                                    >
+                                        Nächste Runde &rarr;
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* GF Card */}
+                            <div className="relative">
+                                <div className={`absolute -top-12 left-0 right-0 text-center text-fuchsia-400 font-bold transition-opacity ${roundWinner === 'gf' ? 'opacity-100' : 'opacity-0'}`}>
+                                    WINNER
+                                </div>
+                                <Card 
+                                    artist={teamGF[currentRound]} 
+                                    interactive={phase === 'battle' && !isMyTurn}
+                                    hidden={phase === 'battle' && isMyTurn} 
+                                    isTurn={phase === 'battle' && !isMyTurn}
+                                    onClick={playRound}
+                                    winner={phase === 'round-end' ? (roundWinner === 'gf' ? true : roundWinner === 'draw' ? null : false) : null}
+                                />
+                            </div>
+
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
